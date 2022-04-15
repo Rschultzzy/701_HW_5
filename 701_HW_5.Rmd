@@ -1,0 +1,242 @@
+---
+title: "701_HW_5"
+author: "Robert Schultz"
+date: "4/1/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r cars}
+library(tidyverse)
+library(xml2)
+library(rvest)
+library(survey)
+library(magrittr)
+library(scales)
+library(ggpubr)
+library(dplyr)
+library(sjPlot)
+library(haven)
+```
+
+```{r pressure, echo=FALSE}
+library(haven)
+chapter_exercises_ess6rf <- read_sas("~/Downloads/chapter_exercises_ess6rf.sas7bdat", 
+    NULL)
+head(chapter_exercises_ess6rf)
+```
+```{r}
+# Rename DF
+rfdata <-chapter_exercises_ess6rf
+```
+
+```{r}
+table(rfdata$STFLIFE)
+```
+```{r}
+# Mutate STFLIFE for Future Q
+(rfdata<- rfdata %>%
+    mutate(STFLIFE = case_when(
+      STFLIFE < 8 ~ "0",
+      STFLIFE == 8 ~ "0",
+      STFLIFE == 9 ~ "1",
+      STFLIFE == 10 ~ "1",
+    )))
+
+table(rfdata$STFLIFE)
+```
+
+```{r}
+#create factor variables for Marriage
+rfdata$marcatc <- factor(rfdata$marcat, levels = 1:3, labels =c("Married", "Previous", "Never"))
+rfdata$GNDR <- factor(rfdata$GNDR)
+```
+
+```{r}
+# Specify survey design
+rfsvy <- svydesign(strata=~stratify, id=~psu, weights=~PSPWGHT, data=rfdata, nest=T)
+```
+
+```{r}
+(ex6_6 <- svymean(~interaction (voted_lastelection, GNDR), rfsvy, se=T, na.rm=T, ci=T, keep.vars=T))
+```
+
+```{r}
+confint(ex6_6)
+```
+
+```{r}
+svychisq(~voted_lastelection+GNDR, rfsvy, statistic="F")
+```
+
+```{r}
+(ex6_8 <- svyby(~marcatc, ~GNDR, rfsvy, svymean, se=T, na.rm=T, ci=T, keep.vars=T)) #CODES FOR SEX 1=MALE 2=FEMALE
+#svychisq provides a 2 by 2 chisq test (F)
+svychisq(~voted_lastelection+GNDR, rfsvy, statistic="F")
+```
+
+```{r}
+# obtain F test
+svychisq(~voted_lastelection+marcatc, rfsvy)
+# obtain ChiSQ test
+svychisq(~voted_lastelection+marcatc, rfsvy, statistic="Chisq")
+
+# We reject null hypothesis that voting in the last election is independent on if the respondent was married
+```
+
+```{r}
+## By M/F sub-grouping
+# obtain F test
+svychisq(~voted_lastelection+marcat, subset(rfsvy, GNDR=="1", na.rm=T, statistic = "F"))
+# obtain ChiSQ test
+svychisq(~voted_lastelection+marcat, subset(rfsvy, GNDR=="2", na.rm=T, statistic = "F"))
+```
+
+```{r}
+fig6_8 <- svyby(~factor(STFLIFE), ~GNDR, rfsvy, svymean, na.rm=T)
+print(fig6_8)
+
+confint(fig6_8)
+```
+
+```{r}
+c <-svymean(~STFLIFE, design=rfsvy, na.rm=T)
+print(c)
+confint(c)
+```
+
+```{r}
+# obtain F test
+svychisq(~STFLIFE+GNDR, rfsvy)
+# obtain ChiSQ test
+svychisq(~STFLIFE+GNDR, rfsvy, statistic="Chisq")
+```
+
+```{r}
+rfdata <- subset(rfdata, !is.na(voted_lastelection))
+length(rfdata$voted_lastelection)
+dstrat<-svydesign(id=~psu,strata=~stratify, weights=~PSPWGHT, data=rfdata)
+svytable(~voted_lastelection, design = dstrat)
+svymean(~voted_lastelection, design = dstrat)
+confint(svymean(~voted_lastelection, design = dstrat))
+```
+
+```{r}
+# obtain F test
+svychisq(~voted_lastelection+marcatc, rfsvy)
+# obtain ChiSQ test
+svychisq(~voted_lastelection+marcatc, rfsvy, statistic="Chisq")
+
+# We reject null hypothesis that voting in the last election is independent on if the respondent was married
+```
+
+```{r}
+(ex6_8 <- svyby(~marcatc, ~GNDR, rfsvy, svymean, se=T, na.rm=T, ci=T, keep.vars=T))
+svychisq(~voted_lastelection+marcatc, rfsvy)
+```
+
+```{r}
+# Subset only STFLIFE has value
+rfdata <- subset(rfdata, !is.na(STFLIFE))
+length(rfdata$STFLIFE)
+```
+
+```{r}
+rfdata <- subset(rfdata, !is.na(STFLIFE))
+length(rfdata$STFLIFE)
+dstrat<-svydesign(id=~psu,strata=~stratify, weights=~PSPWGHT, data=rfdata)
+svytable(~STFLIFE + GNDR, design = dstrat)
+svymean(~STFLIFE + GNDR, design = dstrat)
+confint(svymean(~STFLIFE, design = dstrat))
+```
+
+```{r}
+svyby(~factor(STFLIFE), ~factor(GNDR), rfsvy, svymean, se=T, na.rm=T, ci=T, keep.vars=T)
+```
+
+```{r}
+# obtain F test
+svychisq(~STFLIFE+GNDR, rfsvy)
+# obtain ChiSQ test
+svychisq(~STFLIFE+GNDR, rfsvy, statistic="Chisq")
+
+# We would fail to reject the null hypothesis that satisfaction in life is independent of sex of a respondent
+```
+
+```{r}
+summary(ex75_race <- svyglm(STFGOV ~GNDR, design=rfsvy)) 
+regTermTest(ex75_race, ~GNDR)
+```
+```{r}
+summary(ex76_race <- svyglm(STFGOV ~HEALTH, design=rfsvy)) 
+regTermTest(ex76_race, ~HEALTH)
+```
+
+```{r}
+summary(ex77_race <- svyglm(STFGOV ~lr3cat, design=rfsvy)) 
+regTermTest(ex77_race, ~lr3cat)
+```
+```{r}
+summary(ex78_svyglm <- svyglm(STFGOV ~ GNDR + HEALTH + lr3cat, design=rfsvy, na.action = na.omit)) 
+plot(ex78_svyglm)
+```
+
+```{r}
+anova(ex78_svyglm)
+```
+
+```{r}
+summary(ex79_svyglm <- svyglm(STFGOV ~ GNDR*lr3cat + HEALTH, design=rfsvy, na.action = na.omit)) 
+plot(ex79_svyglm)
+```
+
+```{r}
+anova(ex79_svyglm)
+```
+
+```{r}
+ex79_svyglm$deviance
+ex79_svyglm$null.deviance
+ex79_svyglm$df.residual
+ex79_svyglm$df.null
+```
+
+```{r}
+summary(ex80_svyglm <- svyglm(STFGOV ~ GNDR + HEALTH + lr3cat, design=rfsvy)) 
+plot(ex80_svyglm)
+hist(ex80_svyglm$residuals, prob = TRUE, main = "Histogram with normal curve")
+x <- seq(min(ex80_svyglm$residuals), max(ex80_svyglm$residuals), length = 40)
+f <- dnorm(x, mean = mean(ex80_svyglm$residuals), sd = sd(ex80_svyglm$residuals))
+lines(x, f, col = "red", lwd = 3)
+```
+
+```{r}
+R2_var = 1 - ex80_svyglm$residuals / ex80_svyglm$null.deviance
+```
+
+
+```{r}
+ex80_svyglm$deviance
+ex80_svyglm$null.deviance
+ex80_svyglm$df.residual
+ex80_svyglm$df.null
+```
+
+```{r}
+(ex81_wt <- lm(STFGOV ~ GNDR + HEALTH + lr3cat, data= rfdata,weight=PSPWGHT )) 
+summary(ex81_wt)
+```
+
+```{r}
+ex81_wt$df.residual
+```
+
+```{r}
+anova(ex81_wt)
+AIC(ex81_wt)
+BIC(ex81_wt)
+```
+
